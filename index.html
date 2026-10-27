@@ -1,0 +1,291 @@
+
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#101111">
+<title>Gigi's Bar | Cocktail Finder</title>
+<style>
+:root {
+  --bg:#101111; --panel:#1b1d1d; --gold:#d7b56d;
+  --text:#f5f3ed; --muted:#a5aaa5; --line:#343837;
+}
+* { box-sizing:border-box; }
+body {
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+.app { max-width:850px; margin:auto; padding:25px 16px 45px; }
+header { margin-bottom:25px; }
+.brand { color:var(--gold); font-size:12px; letter-spacing:3px; }
+h1 { font-size:30px; margin:8px 0; }
+.subtitle { color:var(--muted); font-size:14px; }
+.searchbox { position:relative; margin:22px 0 16px; }
+input {
+  width:100%; padding:16px; border:1px solid var(--line);
+  border-radius:14px; background:var(--panel); color:var(--text);
+  font-size:16px; outline:none;
+}
+input:focus { border-color:var(--gold); }
+.filters { display:flex; gap:8px; overflow-x:auto; padding:4px 0 18px; }
+.chip {
+  flex-shrink:0; border:1px solid var(--line); border-radius:30px;
+  background:var(--panel); color:var(--muted); padding:10px 14px;
+  cursor:pointer;
+}
+.chip.active { background:var(--gold); color:#171710; border-color:var(--gold); }
+.heading { display:flex; justify-content:space-between; align-items:center; }
+.heading h2 { font-size:18px; }
+#count { color:var(--muted); font-size:13px; }
+.list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:11px; }
+.drink {
+  position:relative; text-align:left; color:var(--text);
+  background:linear-gradient(145deg,#222525,#181a1a);
+  border:1px solid var(--line); border-radius:15px;
+  padding:16px; min-height:120px; cursor:pointer;
+}
+.drink:hover { border-color:var(--gold); }
+.drink h3 { font-size:16px; margin:12px 0 7px; padding-right:14px; }
+.cat { color:var(--gold); font-size:10px; letter-spacing:1px; text-transform:uppercase; }
+.method { font-size:12px; color:var(--muted); }
+.star {
+  position:absolute; right:12px; top:10px; border:0;
+  background:none; color:var(--gold); font-size:21px; cursor:pointer;
+}
+.empty {
+  grid-column:1/-1; text-align:center; padding:35px 12px;
+  border:1px dashed var(--line); border-radius:14px; color:var(--muted);
+}
+.overlay {
+  display:none; position:fixed; inset:0; z-index:5;
+  background:#000b; align-items:flex-end; justify-content:center;
+}
+.overlay.open { display:flex; }
+.modal {
+  background:#191b1b; border:1px solid var(--line);
+  border-radius:23px 23px 0 0; padding:22px 20px;
+  width:100%; max-width:760px; max-height:90vh; overflow-y:auto;
+}
+.modalhead { display:flex; justify-content:space-between; gap:12px; }
+.modal h2 { margin:8px 0; font-size:27px; }
+.close {
+  border:1px solid var(--line); border-radius:50%; width:38px;
+  height:38px; background:var(--panel); color:white;
+  font-size:22px; cursor:pointer; flex-shrink:0;
+}
+.pill { display:inline-block; color:var(--gold); background:#302a1e; padding:8px 11px; border-radius:8px; font-size:12px; }
+.modal h4 { color:var(--muted); font-size:12px; letter-spacing:1px; margin-top:24px; }
+.ingredients { list-style:none; padding:0; margin:0; }
+.ingredients li {
+  display:flex; justify-content:space-between; gap:15px;
+  border-bottom:1px solid var(--line); padding:13px 0; font-size:15px;
+}
+.ingredients li span:last-child { color:var(--gold); text-align:right; }
+.note { margin-top:16px; background:#242626; padding:13px; border-radius:10px; font-size:14px; line-height:1.5; color:var(--muted); }
+footer { color:#777; font-size:11px; text-align:center; margin-top:30px; }
+@media(min-width:600px) {
+  .list { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .overlay { align-items:center; padding:20px; }
+  .modal { border-radius:22px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div class="brand">GIGI'S BAR · BARTENDER TOOLS</div>
+  <h1>Cocktail Finder 🍸</h1>
+  <div class="subtitle">Trova subito la ricetta che ti serve.</div>
+</header>
+
+<div class="searchbox">
+  <input id="search" type="search" placeholder="Cerca cocktail o ingrediente..." autocomplete="off">
+</div>
+
+<nav class="filters" id="filters"></nav>
+
+<div class="heading">
+  <h2 id="listTitle">Tutti i cocktail</h2>
+  <span id="count"></span>
+</div>
+<div class="list" id="list"></div>
+<footer>Gigi's Bar · Ricettario cocktail</footer>
+</div>
+
+<div class="overlay" id="overlay">
+<section class="modal" role="dialog" aria-modal="true">
+  <div class="modalhead">
+    <div>
+      <div class="brand" id="drinkCategory"></div>
+      <h2 id="drinkTitle"></h2>
+    </div>
+    <button class="close" id="close" aria-label="Chiudi">×</button>
+  </div>
+  <div class="pill" id="drinkMethod"></div>
+  <h4>INGREDIENTI E DOSI</h4>
+  <ul class="ingredients" id="ingredients"></ul>
+  <div class="note" id="drinkNote" hidden></div>
+</section>
+</div>
+
+<script>
+const recipes = [
+["Americano","Aperitivi","Build",[["Bitter","40 ml"],["Vermouth","30 ml"],["Soda","Top"]],"Zest limone e arancia"],
+["Negroni","Aperitivi","Build",[["Batch","90 ml"]],"La ricetta del PDF indica la dose come batch. Guarnizione: zest di limone e arancia."],
+["Batch x Litro Negroni","Aperitivi","Batch",[["Gin","266 ml"],["Vermouth","266 ml"],["Bitter","266 ml"],["Acqua","200 ml"]],"Batch per circa un litro, come indicato nel ricettario."],
+["Moscow Mule","Aperitivi","Build",[["Vodka","60 ml"],["Lime","15 ml"],["Ginger Beer","Fill"]],"Zenzero e lime"],
+["Linea Spritz","Aperitivi","Build",[["Liquore","60 ml"],["Prosecco","90 ml"],["Soda","Top"]],"Per l'Hugo: 20 ml di sambuco al posto della parte di liquore."],
+["Ice T+ Fizz","Aperitivi","Shake & Strain",[["T+","60 ml"],["Limone","30 ml"],["Zucchero","15 ml"],["Albume","5 ml"],["Soda","Fill"]],"Limone essiccato"],
+["Naked & Famous","Aperitivi","Shake & Strain – Cobbler",[["Mezcal","20 ml"],["Aperol","20 ml"],["Chartreuse","20 ml"],["Lime","20 ml"]],""],
+["Passion Royal","Aperitivi","Build",[["Prosecco","90 ml"],["Purea passion","20 ml"],["Ginger Ale","30 ml"]],"Menta e lime"],
+["Ginger Lustig","Aperitivi","Build",[["Prosecco","90 ml"],["Lime","10 ml"],["Ginger Beer","30 ml"]],"Zenzero e lime"],
+["Lillet Wild Berry","Aperitivi","Build",[["Lillet Rosè","60 ml"],["Tonica Wild Berry","Fill"]],"Frutti di bosco, cetriolo e menta"],
+
+["Popcorn Fizz","Signature Drink","Shake & Strain",[["Gin","60 ml"],["Limone","30 ml"],["Caramello","7,5 ml"],["Popcorn Syrup","7,5 ml"]],"Batch ipotetico: versata 75 ml. Arance essiccate e popcorn."],
+["Vanilla Sky","Signature Drink","Build",[["Vodka","50 ml"],["Lavanda syrup","3 dash"],["Limone","25 ml"],["Lampone","20 ml"],["Panna","Top"]],"Caramellina fragola e cacao"],
+["Sudtirol Negroni","Signature Drink","Build",[["Batch","90 ml"]],"Guarnizione: chips di speck. La dose è indicata come batch."],
+["Nonna’s Drunkn ApplePie","Signature Drink","Shake & Strain",[["Vodka","40 ml"],["Liquore mela","20 ml"],["Cannella syrup","10 ml"],["Limone","15 ml"],["Purea mela","30 ml"],["Spuma sifone","—"]],"Batch ipotetico: versata 70 ml. Cannella in polvere."],
+["Tiramisucca","Signature Drink","Shake & Strain",[["Cognac","30 ml"],["Liquore caffè","15 ml"],["Zabov","15 ml"],["Espresso","30 ml"]],""],
+["2 Nuts","Signature Drink","Shake & Strain",[["Noselar","40 ml"],["Purea passion","20 ml"],["Orzata","5 ml"],["Panna","Top"]],"Cannella in polvere"],
+["Indian Penicillin","Signature Drink","Shake & Strain",[["Whiskey","45 ml"],["Chay syrup","15 ml"],["Honey Ginger","20 ml"],["Limone","20 ml"],["Lapohig","15 ml (float dopo shakerata)"]],"Zenzero e lime"],
+["Daiquiri Loco","Signature Drink","Shake & Strain – Cobbler",[["Rhum","40 ml"],["Liquore rhum banana","20 ml"],["Lime","30 ml"],["Sciroppo banana","15 ml"]],"Garnish da stabilire"],
+
+["Espresso Martini","Grandi Classici","Shake & Strain",[["Vodka","40 ml"],["Liquore caffè","20 ml"],["Espresso","30 ml"],["Zucchero","10 ml"]],""],
+["Pornstar Martini","Grandi Classici","Shake & Strain",[["Vodka","60 ml"],["Vanilla syrup","20 ml"],["Purea passion fruit","20 ml"],["Lime","15 ml"]],"Shot Champagne/Prosecco e mezzo passion fruit caramellizzato"],
+["Clover Club","Grandi Classici","Shake & Strain",[["Gin","45 ml"],["Limone","25 ml"],["Zucchero","15 ml"],["Foam","10 ml"],["Lamponi freschi","7–8"]],""],
+["Margarita","Grandi Classici","Shake & Strain",[["Tequila","45 ml"],["Cointreau","15 ml"],["Lime","25 ml"],["Agave","2 bsp"]],"Crusta di sale"],
+["Tommy’s Margarita","Grandi Classici","Shake & Strain in RockGlass",[["Tequila","60 ml"],["Lime","30 ml"],["Agave","2 bsp"]],"Lime"],
+["Basil Smash","Grandi Classici","Shake & Double Strain",[["Gin","60 ml"],["Limone","30 ml"],["Zucchero","15 ml"],["Basilico","8–10 foglie"]],""],
+["Mojito","Grandi Classici","Shake & Strain",[["Rhum","50 ml"],["Lime","20 ml"],["Zucchero","20 ml"],["Menta","8–12 foglie"],["Soda","Fill"]],"Menta e lime essiccato"],
+["Daiquiri","Grandi Classici","Shake & Strain – Cobbler",[["Rhum","60 ml"],["Lime","30 ml"],["Zucchero","15 ml"]],""],
+["Paloma","Grandi Classici","Build",[["Tequila","45 ml"],["Lime","20 ml"],["Agave","2 bsp"],["Galvanina pompelmo","Fill"]],"Crusta sale e pompelmo"],
+["Long Island","Grandi Classici","Build",[["Gin","15 ml"],["Vodka","15 ml"],["Rhum","15 ml"],["Triple Sec","15 ml"],["Limone","30 ml"],["Zucchero","15 ml"],["Cola","Top"]],"Batch ipotetico: versata 60 ml. Limone."],
+["BloodyMary","Grandi Classici","Throwing",[["Vodka","45 ml"],["Limone","20 ml"],["Pomodoro","90 ml"],["Worcestershire","4 dash"],["Tabasco","2 dash"],["Sale e pepe","Un pizzico"]],"Limone"],
+["Mai Tai","Grandi Classici","Shake & Strain",[["Rhum chiaro","30 ml"],["Rhum scuro","20 ml"],["Cointreau","15 ml"],["Lime","30 ml"],["Orzata","2 bsp"]],"Lime e menta"],
+["Cosmopolitan","Grandi Classici","Shake & Strain",[["Citrus vodka","45 ml"],["Cointreau","15 ml"],["Cranberry","30 ml"],["Lime","20 ml"]],""],
+["Fizz","Grandi Classici","Shake & Strain",[["Distillato","50m (come scritto nel PDF)"],["Limone","30 ml"],["Zucchero","15 ml"],["Foam","10 ml"],["Soda","Top"]],""],
+["Manhattan","Grandi Classici","Stir & Strain",[["Bourbon","70 ml"],["Sweet Vermouth","30 ml"],["Angostura","2 dash"]],""],
+["Old Fashioned","Grandi Classici","Stir & Strain",[["Bourbon","60 ml"],["Zucchero","15 ml"],["Angostura","3 dash"]],"Chiedere se lo preferiscono più secco e diminuire lo zucchero."],
+["Old Cuban","Grandi Classici","Shake & Strain",[["Rhum","45 ml"],["Lime","20 ml"],["Zucchero","15 ml"],["Angostura","2 dash"],["Menta","8–10 foglie"],["Prosecco/Champagne","Top"]],"Menta e lime"]
+];
+
+const categories=["Tutti","Aperitivi","Signature Drink","Grandi Classici","★ Preferiti"];
+let active="Tutti", query="", favorites=[];
+try { favorites=JSON.parse(localStorage.getItem("gigis-favs")||"[]"); } catch(e) {}
+
+const list=document.getElementById("list");
+const filters=document.getElementById("filters");
+const search=document.getElementById("search");
+
+function saveFavorites(){
+  try { localStorage.setItem("gigis-favs",JSON.stringify(favorites)); } catch(e) {}
+}
+function makeButton(text,className){
+  const b=document.createElement("button");
+  b.type="button"; b.textContent=text; b.className=className;
+  return b;
+}
+function drawFilters(){
+  filters.replaceChildren();
+  categories.forEach(c=>{
+    const b=makeButton(c,"chip"+(active===c?" active":""));
+    b.addEventListener("click",()=>{active=c;drawFilters();drawList();});
+    filters.appendChild(b);
+  });
+}
+function drawList(){
+  const q=query.toLocaleLowerCase("it");
+  const found=recipes.map((r,i)=>({r,i})).filter(({r,i})=>{
+    const hay=[r[0],r[1],r[2],...r[3].flat(),r[4]].join(" ").toLocaleLowerCase("it");
+    const categoryMatch=active==="Tutti" || r[1]===active ||
+      (active==="★ Preferiti" && favorites.includes(i));
+    return categoryMatch && hay.includes(q);
+  });
+
+  document.getElementById("listTitle").textContent=
+    active==="Tutti" ? "Tutti i cocktail" : active;
+  document.getElementById("count").textContent=
+    found.length+" "+(found.length===1?"risultato":"risultati");
+  list.replaceChildren();
+
+  if(!found.length){
+    const empty=document.createElement("div");
+    empty.className="empty";
+    empty.textContent="Nessun cocktail trovato. Prova un altro nome o ingrediente.";
+    list.appendChild(empty);
+    return;
+  }
+
+  found.forEach(({r,i})=>{
+    const card=document.createElement("article");
+    card.className="drink"; card.tabIndex=0;
+
+    const star=makeButton(favorites.includes(i)?"★":"☆","star");
+    star.setAttribute("aria-label","Aggiungi ai preferiti");
+    star.addEventListener("click",e=>{
+      e.stopPropagation();
+      favorites=favorites.includes(i)
+        ? favorites.filter(x=>x!==i) : [...favorites,i];
+      saveFavorites(); drawList();
+    });
+
+    const cat=document.createElement("div");
+    cat.className="cat"; cat.textContent=r[1];
+    const title=document.createElement("h3"); title.textContent=r[0];
+    const method=document.createElement("div");
+    method.className="method"; method.textContent=r[2];
+
+    card.append(star,cat,title,method);
+    card.addEventListener("click",()=>openRecipe(i));
+    card.addEventListener("keydown",e=>{
+      if(e.key==="Enter"||e.key===" "){e.preventDefault();openRecipe(i);}
+    });
+    list.appendChild(card);
+  });
+}
+function openRecipe(i){
+  const r=recipes[i];
+  document.getElementById("drinkCategory").textContent=r[1];
+  document.getElementById("drinkTitle").textContent=r[0];
+  document.getElementById("drinkMethod").textContent=r[2];
+
+  const ingredients=document.getElementById("ingredients");
+  ingredients.replaceChildren();
+  r[3].forEach(([name,amount])=>{
+    const li=document.createElement("li");
+    const a=document.createElement("span"); a.textContent=name;
+    const b=document.createElement("span"); b.textContent=amount;
+    li.append(a,b); ingredients.appendChild(li);
+  });
+
+  const note=document.getElementById("drinkNote");
+  note.textContent=r[4]; note.hidden=!r[4];
+  document.getElementById("overlay").classList.add("open");
+  document.body.style.overflow="hidden";
+}
+function closeRecipe(){
+  document.getElementById("overlay").classList.remove("open");
+  document.body.style.overflow="";
+}
+search.addEventListener("input",()=>{
+  query=search.value.trim();
+  drawList();
+});
+search.addEventListener("search",()=>{
+  query=search.value.trim();
+  drawList();
+});
+document.getElementById("close").addEventListener("click",closeRecipe);
+document.getElementById("overlay").addEventListener("click",e=>{
+  if(e.target.id==="overlay") closeRecipe();
+});
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape") closeRecipe();
+});
+
+drawFilters();
+drawList();
+</script>
+</body>
+</html>
